@@ -1,0 +1,44 @@
+Three-Tier Authentication System - UI Access Information
+=========================================================
+
+Deployed on: Tue Nov 25 09:21:50 UTC 2025
+Public IP: 
+
+WEB INTERFACE
+-------------
+Main URL: http://
+
+HEALTH CHECK
+------------
+Status: http:///health
+
+API ENDPOINTS
+-------------
+Registration: POST http:///api/register
+Login:        POST http:///api/login
+Pattern:      POST http:///api/pattern/verify
+
+ADMIN ENDPOINTS
+---------------
+Users:     GET http:///api/admin/users
+Sessions:  GET http:///api/admin/sessions
+Analytics: GET http:///api/analytics/stats
+
+SERVICE LOGS
+------------
+UI Backend: sudo journalctl -u ui-backend -f
+Nginx:      sudo tail -f /var/log/nginx/access.log
+
+DATABASE
+--------
+Location: /home/ubuntu/three-tier-auth/ui-backend/ui_sessions.db
+Tables: user_profile, user_session, authentication_log
+
+TROUBLESHOOTING
+---------------
+1. Restart UI Backend: sudo systemctl restart ui-backend
+2. Check status: sudo systemctl status ui-backend
+3. View errors: sudo journalctl -u ui-backend -n 50
+4. Test health: curl http://localhost/health
+
+For detailed guide, see: UI_DEPLOYMENT_GUIDE.md
