@@ -1,7 +1,4 @@
-# ui-backend/app.py - UI Backend Integration Service
-# This service acts as a gateway between the frontend and all backend services
-# Runs on Port 3000
-
+# ui-backend/app.py - UI Backend Integration Service Enhanced
 import os
 import json
 import requests
@@ -11,9 +8,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
 app = Flask(__name__, static_folder='../frontend')
-CORS(app)  # Enable CORS for frontend
+CORS(app)
 
-# Database configuration
 BASE_DIR = os.path.dirname(__file__)
 DB_PATH = os.path.join(BASE_DIR, "ui_sessions.db")
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
@@ -44,27 +40,25 @@ class AuthenticationLog(db.Model):
     """Log all authentication attempts"""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), nullable=False, index=True)
-    action = db.Column(db.String(50), nullable=False)  # registration, login, pattern_verify, etc.
+    action = db.Column(db.String(50), nullable=False)
     success = db.Column(db.Boolean, nullable=False)
-    service = db.Column(db.String(50), nullable=True)  # uidaaas, dmiuaas, etc.
+    service = db.Column(db.String(50), nullable=True)
     ip_address = db.Column(db.String(45), nullable=True)
-    details = db.Column(db.Text, nullable=True)  # JSON string with additional info
+    details = db.Column(db.Text, nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
 class UserProfile(db.Model):
     """Extended user profile information"""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(254), nullable=False)
+    email = db.Column(db.String(254), unique=True, nullable=False, index=True)
     full_name = db.Column(db.String(200), nullable=True)
     phone = db.Column(db.String(20), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
     login_count = db.Column(db.Integer, default=0)
     is_active = db.Column(db.Boolean, default=True)
-    
-    # Additional metadata
-    metadata_json = db.Column(db.Text, nullable=True)  # Store custom data as JSON
+    metadata_json = db.Column(db.Text, nullable=True)
 
 # Helper Functions
 def log_auth_attempt(username, action, success, service=None, details=None):
@@ -108,7 +102,6 @@ def health_check():
     """Health check endpoint"""
     services_status = {}
     
-    # Check each service
     for name, url in [
         ('uidaaas', UIDAAAS_URL),
         ('dmiuaas', DMIUAAS_URL),
@@ -129,25 +122,39 @@ def health_check():
         "timestamp": datetime.utcnow().isoformat()
     }), 200 if all_healthy else 503
 
-# API Endpoints
-
-# ============================================================================
 # REGISTRATION FLOW
-# ============================================================================
-
 @app.route('/api/register', methods=['POST'])
 def register():
-    """Complete registration flow"""
+    """Complete registration flow with email verification"""
     data = request.json or {}
     email = data.get('email')
     username = data.get('username')
     password = data.get('password')
     
     if not email or not username or not password:
-        return jsonify({"error": "Email, username, and password required"}), 400
+        return jsonify({"error": "Email, username, and password are required"}), 400
     
     try:
-        # Step 1: Request access
+        # Check if email/username already exists in our profiles first
+        existing_profile_email = UserProfile.query.filter_by(email=email).first()
+        if existing_profile_email:
+            log_auth_attempt(username, 'registration', False, 'ui-backend', 
+                           {"reason": "email_exists"})
+            return jsonify({
+                "error": "This email is already registered",
+                "suggestion": "Please login with your existing account or use a different email"
+            }), 409
+        
+        existing_profile_username = UserProfile.query.filter_by(username=username).first()
+        if existing_profile_username:
+            log_auth_attempt(username, 'registration', False, 'ui-backend', 
+                           {"reason": "username_exists"})
+            return jsonify({
+                "error": f"Username '{username}' is already taken",
+                "suggestion": "Please choose a different username"
+            }), 409
+        
+        # Step 1: Request access (with email validation)
         result1, status1 = call_service(UIDAAAS_URL, '/request_access', 'POST', {
             'email': email,
             'username': username
@@ -159,7 +166,7 @@ def register():
         
         request_id = result1['request_id']
         
-        # Step 2: Create OTP (simulating auto-approval)
+        # Step 2: Create OTP and send email
         result2, status2 = call_service(UIDAAAS_URL, '/create_user_from_request', 'POST', {
             'request_id': request_id
         })
@@ -192,24 +199,53 @@ def register():
         log_auth_attempt(username, 'registration', True, 'uidaaas', result3)
         
         return jsonify({
-            "message": "Registration successful",
+            "success": True,
+            "message": "Registration completed successfully!",
             "username": result3['username'],
+            "email": email,
             "next_step": "pattern_setup"
         }), 201
     
     except Exception as e:
-        log_auth_attempt(username or 'unknown', 'registration', False, 'ui-backend', {"error": str(e)})
-        return jsonify({"error": str(e)}), 500
+        log_auth_attempt(username or 'unknown', 'registration', False, 'ui-backend', 
+                        {"error": str(e)})
+        return jsonify({
+            "error": "Registration failed due to an internal error",
+            "details": str(e)
+        }), 500
+
+@app.route('/api/check-availability', methods=['POST'])
+def check_availability():
+    """Check if username or email is available"""
+    data = request.json or {}
+    username = data.get('username')
+    email = data.get('email')
+    
+    result = {}
+    
+    if username:
+        existing = UserProfile.query.filter_by(username=username).first()
+        result['username_available'] = existing is None
+        if existing:
+            result['username_message'] = f"Username '{username}' is already taken"
+    
+    if email:
+        existing = UserProfile.query.filter_by(email=email).first()
+        result['email_available'] = existing is None
+        if existing:
+            result['email_message'] = "This email is already registered"
+    
+    return jsonify(result), 200
 
 @app.route('/api/pattern/setup', methods=['POST'])
 def setup_pattern():
     """Register user's image pattern"""
     data = request.json or {}
     username = data.get('username')
-    pattern = data.get('pattern')  # [[row, col], ...]
+    pattern = data.get('pattern')
     
     if not username or not pattern:
-        return jsonify({"error": "Username and pattern required"}), 400
+        return jsonify({"error": "Username and pattern are required"}), 400
     
     try:
         result, status = call_service(DMIUAAS_URL, '/register_user_secret', 'POST', {
@@ -222,20 +258,19 @@ def setup_pattern():
         
         if success:
             return jsonify({
-                "message": "Pattern registered successfully",
+                "success": True,
+                "message": "Pattern registered successfully!",
                 "username": username
             }), 201
         else:
             return jsonify(result), status
     
     except Exception as e:
-        log_auth_attempt(username, 'pattern_setup', False, 'ui-backend', {"error": str(e)})
+        log_auth_attempt(username, 'pattern_setup', False, 'ui-backend', 
+                        {"error": str(e)})
         return jsonify({"error": str(e)}), 500
 
-# ============================================================================
 # LOGIN FLOW
-# ============================================================================
-
 @app.route('/api/login', methods=['POST'])
 def login():
     """Step 1: Password authentication"""
@@ -244,7 +279,7 @@ def login():
     password = data.get('password')
     
     if not username or not password:
-        return jsonify({"error": "Username and password required"}), 400
+        return jsonify({"error": "Username and password are required"}), 400
     
     try:
         # Authenticate password
@@ -281,14 +316,16 @@ def login():
         db.session.commit()
         
         return jsonify({
-            "message": "Password verified",
+            "success": True,
+            "message": "Password verified successfully",
             "session_id": session_id,
             "next_step": "pattern_verification",
             "username": username
         }), 200
     
     except Exception as e:
-        log_auth_attempt(username or 'unknown', 'login_password', False, 'ui-backend', {"error": str(e)})
+        log_auth_attempt(username or 'unknown', 'login_password', False, 
+                        'ui-backend', {"error": str(e)})
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/pattern/challenge', methods=['POST'])
@@ -318,10 +355,13 @@ def init_pattern_challenge():
         
         if status == 201:
             return jsonify({
+                "success": True,
                 "message": "Challenge created",
                 "challenge_token": result['token'],
                 "grid": result['grid'],
-                "expires_at": result['expires_at']
+                "grid_size": result.get('grid_size'),
+                "expires_at": result['expires_at'],
+                "instructions": result.get('instructions')
             }), 201
         else:
             return jsonify(result), status
@@ -369,24 +409,23 @@ def verify_pattern():
             
             return jsonify({
                 "success": True,
-                "message": "Authentication complete",
+                "message": "Authentication completed successfully!",
                 "session_id": session_id,
                 "username": username
             }), 200
         else:
             return jsonify({
                 "success": False,
-                "message": result.get('message', 'Pattern verification failed')
+                "message": result.get('message', 'Pattern verification failed'),
+                "attempts_remaining": result.get('attempts_remaining', 0)
             }), 401
     
     except Exception as e:
-        log_auth_attempt(username, 'pattern_verification', False, 'ui-backend', {"error": str(e)})
+        log_auth_attempt(username, 'pattern_verification', False, 
+                        'ui-backend', {"error": str(e)})
         return jsonify({"error": str(e)}), 500
 
-# ============================================================================
 # SESSION & PROFILE MANAGEMENT
-# ============================================================================
-
 @app.route('/api/session/<session_id>', methods=['GET'])
 def get_session(session_id):
     """Get session information"""
@@ -456,10 +495,7 @@ def update_profile(username):
     
     return jsonify({"message": "Profile updated successfully"}), 200
 
-# ============================================================================
 # ANALYTICS & REPORTING
-# ============================================================================
-
 @app.route('/api/analytics/auth-logs', methods=['GET'])
 def get_auth_logs():
     """Get authentication logs"""
@@ -509,10 +545,7 @@ def get_stats():
         "success_rate": (total_logins / (total_logins + failed_logins) * 100) if (total_logins + failed_logins) > 0 else 0
     }), 200
 
-# ============================================================================
 # ADMIN ENDPOINTS
-# ============================================================================
-
 @app.route('/api/admin/users', methods=['GET'])
 def list_all_users():
     """List all users"""
@@ -564,9 +597,13 @@ with app.app_context():
     db.create_all()
 
 if __name__ == "__main__":
-    print("Starting UI Backend Integration Service on port 3000")
+    print("=" * 60)
+    print("🌐 UI Backend - Authentication as a Service")
+    print("=" * 60)
+    print(f"Starting on port 3000")
     print(f"UIDAaaS: {UIDAAAS_URL}")
     print(f"DMIUAaas: {DMIUAAS_URL}")
     print(f"KGaaS: {KGAAS_URL}")
     print(f"Lacryptaas: {LACRYPTAAS_URL}")
+    print("=" * 60)
     app.run(host='0.0.0.0', port=3000, debug=True)

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Three-Tier Authentication System</title>
+    <title>Authentication as a Service</title>
     <style>
         * {
             margin: 0;
@@ -24,92 +24,68 @@
         .container {
             background: white;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 450px;
             width: 100%;
-            padding: 40px;
+            overflow: hidden;
         }
 
-        .logo {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .logo h1 {
-            color: #667eea;
-            font-size: 28px;
-            margin-bottom: 5px;
-        }
-
-        .logo p {
-            color: #666;
-            font-size: 14px;
-        }
-
-        .step-indicator {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-            padding: 0 20px;
-        }
-
-        .step {
-            flex: 1;
-            text-align: center;
-            position: relative;
-        }
-
-        .step::before {
-            content: '';
-            position: absolute;
-            width: 100%;
-            height: 2px;
-            background: #e0e0e0;
-            top: 15px;
-            left: 50%;
-            z-index: -1;
-        }
-
-        .step:last-child::before {
-            display: none;
-        }
-
-        .step-circle {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: #e0e0e0;
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: bold;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
             margin-bottom: 5px;
         }
 
-        .step.active .step-circle {
-            background: #667eea;
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
         }
 
-        .step.completed .step-circle {
-            background: #4caf50;
+        .content {
+            padding: 40px 30px;
         }
 
-        .step-label {
-            font-size: 12px;
-            color: #999;
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
         }
 
-        .step.active .step-label {
-            color: #667eea;
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: #f1f3f5;
+            color: #495057;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
         }
 
-        .section {
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .tab-content {
             display: none;
         }
 
-        .section.active {
+        .tab-content.active {
             display: block;
         }
 
@@ -117,85 +93,128 @@
             margin-bottom: 20px;
         }
 
-        label {
+        .form-group label {
             display: block;
             margin-bottom: 8px;
-            color: #333;
+            color: #495057;
             font-weight: 500;
             font-size: 14px;
         }
 
-        input[type="text"],
-        input[type="email"],
-        input[type="password"] {
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #adb5bd;
+            font-size: 18px;
+        }
+
+        .form-group input {
             width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            padding: 14px 14px 14px 45px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
             font-size: 14px;
-            transition: border-color 0.3s;
-        }
-
-        input:focus {
+            transition: all 0.3s;
             outline: none;
+        }
+
+        .form-group input:focus {
             border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
-        .password-requirements {
+        .form-group input.error {
+            border-color: #f03e3e;
+        }
+
+        .form-group input.success {
+            border-color: #51cf66;
+        }
+
+        .error-message {
+            color: #f03e3e;
             font-size: 12px;
-            color: #666;
             margin-top: 5px;
-            padding-left: 5px;
+            display: none;
         }
 
-        .password-requirements ul {
-            list-style: none;
-            padding-left: 0;
+        .error-message.show {
+            display: block;
         }
 
-        .password-requirements li {
-            padding: 2px 0;
+        .success-message {
+            color: #51cf66;
+            font-size: 12px;
+            margin-top: 5px;
+            display: none;
         }
 
-        .password-requirements li.valid {
-            color: #4caf50;
-        }
-
-        .password-requirements li.invalid {
-            color: #f44336;
+        .success-message.show {
+            display: block;
         }
 
         .btn {
             width: 100%;
             padding: 14px;
-            background: #667eea;
-            color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: all 0.3s;
             margin-top: 10px;
         }
 
-        .btn:hover {
-            background: #5568d3;
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
         }
 
-        .btn:disabled {
-            background: #ccc;
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
             cursor: not-allowed;
+            transform: none;
         }
 
-        .btn-secondary {
-            background: #fff;
-            color: #667eea;
-            border: 2px solid #667eea;
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
         }
 
-        .btn-secondary:hover {
-            background: #f5f5ff;
+        .alert.show {
+            display: block;
+        }
+
+        .alert-error {
+            background: #ffe3e3;
+            color: #c92a2a;
+            border: 1px solid #ffc9c9;
+        }
+
+        .alert-success {
+            background: #d3f9d8;
+            color: #2b8a3e;
+            border: 1px solid #b2f2bb;
+        }
+
+        .alert-info {
+            background: #d0ebff;
+            color: #1864ab;
+            border: 1px solid #a5d8ff;
         }
 
         .grid-container {
@@ -207,16 +226,15 @@
 
         .grid-cell {
             aspect-ratio: 1;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            border: 3px solid #e9ecef;
+            border-radius: 10px;
             cursor: pointer;
             transition: all 0.3s;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #f9f9f9;
-            position: relative;
-            overflow: hidden;
+            background: #f8f9fa;
+            font-size: 24px;
         }
 
         .grid-cell:hover {
@@ -225,51 +243,29 @@
         }
 
         .grid-cell.selected {
-            background: #667eea;
             border-color: #667eea;
-        }
-
-        .grid-cell.selected::after {
-            content: '✓';
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            font-size: 24px;
-            font-weight: bold;
         }
 
-        .grid-cell img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .message {
-            padding: 12px;
-            border-radius: 8px;
+        .pattern-info {
+            text-align: center;
             margin-bottom: 20px;
+            padding: 15px;
+            background: #e7f5ff;
+            border-radius: 10px;
+            color: #1864ab;
             font-size: 14px;
         }
 
-        .message.success {
-            background: #e8f5e9;
-            color: #2e7d32;
-            border: 1px solid #4caf50;
-        }
-
-        .message.error {
-            background: #ffebee;
-            color: #c62828;
-            border: 1px solid #f44336;
-        }
-
-        .message.info {
-            background: #e3f2fd;
-            color: #1565c0;
-            border: 1px solid #2196f3;
-        }
-
         .loading {
+            display: none;
             text-align: center;
             padding: 20px;
+        }
+
+        .loading.show {
+            display: block;
         }
 
         .spinner {
@@ -279,7 +275,7 @@
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
-            margin: 0 auto;
+            margin: 0 auto 10px;
         }
 
         @keyframes spin {
@@ -287,587 +283,555 @@
             100% { transform: rotate(360deg); }
         }
 
-        .pattern-info {
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 13px;
-            color: #666;
+        .dashboard {
+            display: none;
         }
 
-        .success-screen {
+        .dashboard.show {
+            display: block;
+        }
+
+        .dashboard-header {
             text-align: center;
-            padding: 20px;
+            margin-bottom: 30px;
         }
 
-        .success-screen .icon {
-            font-size: 80px;
-            color: #4caf50;
-            margin-bottom: 20px;
-        }
-
-        .success-screen h2 {
-            color: #333;
+        .dashboard-header h2 {
+            color: #495057;
             margin-bottom: 10px;
         }
 
-        .success-screen p {
-            color: #666;
+        .user-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
             margin-bottom: 20px;
         }
 
-        .settings-panel {
-            background: #f9f9f9;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 13px;
+        .user-info p {
+            margin-bottom: 10px;
+            color: #495057;
         }
 
-        .settings-panel label {
-            display: inline-block;
-            margin-right: 10px;
+        .user-info strong {
+            color: #212529;
         }
 
-        .settings-panel input[type="text"] {
-            width: auto;
-            display: inline-block;
-            padding: 5px 10px;
-            font-size: 13px;
-        }
-
-        .demo-mode-banner {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 13px;
-            color: #856404;
-        }
-
-        .link-button {
-            background: none;
-            border: none;
-            color: #667eea;
-            cursor: pointer;
-            text-decoration: underline;
-            font-size: 14px;
-            padding: 0;
+        .password-requirements {
+            font-size: 12px;
+            color: #868e96;
             margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .password-requirements ul {
+            margin-left: 20px;
+            margin-top: 5px;
+        }
+
+        .password-requirements li {
+            margin-bottom: 3px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="logo">
-            <h1>��� SecureAuth</h1>
-            <p>Three-Tier Authentication System</p>
+        <div class="header">
+            <div class="header-icon">🔐</div>
+            <h1>Authentication as a Service</h1>
+            <p>Secure Multi-Factor Authentication System</p>
         </div>
 
-        <!-- Settings Panel (for configuration) -->
-        <div class="settings-panel">
-            <strong>API Configuration:</strong><br>
-            <label>Base URL:</label>
-            <input type="text" id="baseUrl" value="http://localhost" style="width: 200px;">
-            <button onclick="updateConfig()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
-        </div>
-
-        <!-- Step Indicator -->
-        <div class="step-indicator">
-            <div class="step active" id="step1">
-                <div class="step-circle">1</div>
-                <div class="step-label">Register</div>
-            </div>
-            <div class="step" id="step2">
-                <div class="step-circle">2</div>
-                <div class="step-label">Pattern</div>
-            </div>
-            <div class="step" id="step3">
-                <div class="step-circle">3</div>
-                <div class="step-label">Login</div>
-            </div>
-            <div class="step" id="step4">
-                <div class="step-circle">4</div>
-                <div class="step-label">Verify</div>
-            </div>
-        </div>
-
-        <div id="messageContainer"></div>
-
-        <!-- Step 1: Registration -->
-        <div class="section active" id="registrationSection">
-            <h2 style="margin-bottom: 20px; color: #333;">Create Account</h2>
-            <form id="registrationForm">
-                <div class="form-group">
-                    <label for="regEmail">Email Address</label>
-                    <input type="email" id="regEmail" required placeholder="you@example.com">
+        <div class="content">
+            <!-- Auth Section (Login/Register) -->
+            <div id="authSection">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" onclick="switchTab('login')">
+                        🔑 Login
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('register')">
+                        📝 Register
+                    </button>
                 </div>
-                <div class="form-group">
-                    <label for="regUsername">Username</label>
-                    <input type="text" id="regUsername" required placeholder="Choose a username">
-                </div>
-                <div class="form-group">
-                    <label for="regPassword">Password</label>
-                    <input type="password" id="regPassword" required placeholder="Create a strong password">
-                    <div class="password-requirements">
-                        <ul id="passwordChecklist">
-                            <li id="check-length" class="invalid">✗ At least 10 characters</li>
-                            <li id="check-lower" class="invalid">✗ One lowercase letter</li>
-                            <li id="check-upper" class="invalid">✗ One uppercase letter</li>
-                            <li id="check-digit" class="invalid">✗ One digit</li>
-                            <li id="check-special" class="invalid">✗ One special character</li>
-                        </ul>
+
+                <div class="alert alert-error" id="alertBox"></div>
+                <div class="alert alert-success" id="successBox"></div>
+
+                <!-- Login Tab -->
+                <div id="loginTab" class="tab-content active">
+                    <div class="form-group">
+                        <label>👤 Username</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">👤</span>
+                            <input type="text" id="loginUsername" placeholder="Enter your username">
+                        </div>
                     </div>
-                </div>
-                <button type="submit" class="btn">Register</button>
-                <button type="button" class="link-button" onclick="showLogin()">Already have an account? Login</button>
-            </form>
-        </div>
 
-        <!-- Step 2: Pattern Setup -->
-        <div class="section" id="patternSetupSection">
-            <h2 style="margin-bottom: 20px; color: #333;">Set Your Image Pattern</h2>
-            <div class="pattern-info">
-                Select at least 3 cells on the grid to create your unique pattern. Remember this pattern - you'll need it to login!
-            </div>
-            <div class="grid-container" id="patternGrid">
-                <!-- Grid cells will be generated by JavaScript -->
-            </div>
-            <p style="font-size: 13px; color: #666; margin: 10px 0;">
-                Selected: <span id="patternCount">0</span> cells (minimum 3 required)
-            </p>
-            <button class="btn" id="savePatternBtn" disabled onclick="savePattern()">Save Pattern</button>
-        </div>
+                    <div class="form-group">
+                        <label>🔒 Password</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">🔒</span>
+                            <input type="password" id="loginPassword" placeholder="Enter your password">
+                        </div>
+                    </div>
 
-        <!-- Step 3: Login -->
-        <div class="section" id="loginSection">
-            <h2 style="margin-bottom: 20px; color: #333;">Welcome Back</h2>
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="loginUsername">Username</label>
-                    <input type="text" id="loginUsername" required placeholder="Your username">
+                    <button class="btn btn-primary" onclick="login()">
+                        🚀 Login
+                    </button>
                 </div>
-                <div class="form-group">
-                    <label for="loginPassword">Password</label>
-                    <input type="password" id="loginPassword" required placeholder="Your password">
-                </div>
-                <button type="submit" class="btn">Login</button>
-                <button type="button" class="link-button" onclick="showRegistration()">Don't have an account? Register</button>
-            </form>
-        </div>
 
-        <!-- Step 4: Pattern Verification -->
-        <div class="section" id="verificationSection">
-            <h2 style="margin-bottom: 20px; color: #333;">Verify Your Pattern</h2>
-            <div class="message info">
-                Select the same pattern you created during registration.
-            </div>
-            <div class="grid-container" id="verificationGrid">
-                <!-- Grid cells will be generated by JavaScript -->
-            </div>
-            <p style="font-size: 13px; color: #666; margin: 10px 0;">
-                Selected: <span id="verifyPatternCount">0</span> cells
-            </p>
-            <button class="btn" onclick="verifyPattern()">Verify & Login</button>
-        </div>
+                <!-- Register Tab -->
+                <div id="registerTab" class="tab-content">
+                    <div class="form-group">
+                        <label>📧 Email</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">📧</span>
+                            <input type="email" id="registerEmail" placeholder="your@email.com" 
+                                   onblur="checkAvailability('email')">
+                        </div>
+                        <div class="error-message" id="emailError"></div>
+                        <div class="success-message" id="emailSuccess"></div>
+                    </div>
 
-        <!-- Success Screen -->
-        <div class="section" id="successSection">
-            <div class="success-screen">
-                <div class="icon">✓</div>
-                <h2>Authentication Successful!</h2>
-                <p>You have been successfully authenticated through all three tiers.</p>
-                <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: left;">
-                    <strong>Authentication Journey:</strong>
-                    <ul style="margin-top: 10px; padding-left: 20px;">
-                        <li>✓ Password verified (UIDAaaS)</li>
-                        <li>✓ Pattern matched (DMIUAaas)</li>
-                        <li>✓ Session secured (KGaaS)</li>
-                    </ul>
+                    <div class="form-group">
+                        <label>👤 Username</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">👤</span>
+                            <input type="text" id="registerUsername" placeholder="Choose a username"
+                                   onblur="checkAvailability('username')">
+                        </div>
+                        <div class="error-message" id="usernameError"></div>
+                        <div class="success-message" id="usernameSuccess"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>🔒 Password</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">🔒</span>
+                            <input type="password" id="registerPassword" placeholder="Create a strong password">
+                        </div>
+                        <div class="password-requirements">
+                            <strong>Password must contain:</strong>
+                            <ul>
+                                <li>At least 10 characters</li>
+                                <li>Uppercase and lowercase letters</li>
+                                <li>At least one number</li>
+                                <li>At least one special character (!@#$%^&*)</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" onclick="register()">
+                        ✨ Create Account
+                    </button>
                 </div>
-                <button class="btn" onclick="logout()">Logout</button>
+            </div>
+
+            <!-- Pattern Setup Section -->
+            <div id="patternSetupSection" style="display: none;">
+                <div class="pattern-info">
+                    <strong>🎨 Setup Your Pattern</strong><br>
+                    Select at least 3 grid positions as your authentication pattern
+                </div>
+
+                <div class="grid-container" id="setupGrid"></div>
+
+                <div style="text-align: center; margin-top: 10px; color: #667eea; font-weight: 600;">
+                    Selected: <span id="selectedCount">0</span> positions
+                </div>
+
+                <button class="btn btn-primary" onclick="savePattern()" id="savePatternBtn" disabled>
+                    💾 Save Pattern
+                </button>
+            </div>
+
+            <!-- Pattern Verification Section -->
+            <div id="patternVerifySection" style="display: none;">
+                <div class="pattern-info">
+                    <strong>🔍 Verify Your Pattern</strong><br>
+                    Select the same positions you chose during setup
+                </div>
+
+                <div class="grid-container" id="verifyGrid"></div>
+
+                <div style="text-align: center; margin-top: 10px; color: #667eea; font-weight: 600;">
+                    Selected: <span id="verifyCount">0</span> positions
+                </div>
+
+                <button class="btn btn-primary" onclick="verifyPattern()">
+                    ✅ Verify Pattern
+                </button>
+            </div>
+
+            <!-- Dashboard Section -->
+            <div id="dashboardSection" class="dashboard">
+                <div class="dashboard-header">
+                    <h2>🎉 Welcome!</h2>
+                </div>
+
+                <div class="user-info">
+                    <p><strong>Username:</strong> <span id="dashUsername"></span></p>
+                    <p><strong>Status:</strong> <span style="color: #51cf66;">✓ Authenticated</span></p>
+                </div>
+
+                <button class="btn btn-primary" onclick="logout()">
+                    🚪 Logout
+                </button>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Processing...</p>
             </div>
         </div>
     </div>
 
     <script>
-        // Configuration
-        let config = {
-            baseUrl: 'http://localhost',
-            uidaaasPort: '5000',
-            dmiuaasPort: '6000',
-            kgaasPort: '8001',
-            lacryptaasPort: '8002'
-        };
+        let currentUsername = '';
+        let currentSessionId = '';
+        let currentChallengeToken = '';
+        let selectedPositions = [];
 
-        // State
-        let currentUser = null;
-        let currentRequestId = null;
-        let currentOtpToken = null;
-        let currentChallengeToken = null;
-        let selectedPattern = [];
-        let verificationPattern = [];
-
-        // Update configuration
-        function updateConfig() {
-            const baseUrl = document.getElementById('baseUrl').value;
-            config.baseUrl = baseUrl;
-            showMessage('Configuration updated!', 'success');
-        }
-
-        // API helper - Now uses nginx proxy through /api/
-        async function apiCall(service, endpoint, method = 'GET', data = null) {
-            // All requests go through /api/ which nginx proxies to ui-backend:3000
-            const url = `${config.baseUrl}/api${endpoint}`;
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             
-            const options = {
-                method: method,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            };
-
-            if (data) {
-                options.body = JSON.stringify(data);
-            }
-
-            try {
-                console.log(`API Call: ${method} ${url}`); // Debug
-                const response = await fetch(url, options);
-                const result = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(result.error || 'API call failed');
-                }
-                
-                return result;
-            } catch (error) {
-                console.error('API Error:', error);
-                throw error;
-            }
-        }
-
-        // Password validation
-        document.getElementById('regPassword')?.addEventListener('input', function(e) {
-            const password = e.target.value;
-            
-            const checks = {
-                'check-length': password.length >= 10,
-                'check-lower': /[a-z]/.test(password),
-                'check-upper': /[A-Z]/.test(password),
-                'check-digit': /\d/.test(password),
-                'check-special': /[!@#$%^&*()\-_=+[\]{};:'",.<>/?\\|`~]/.test(password)
-            };
-
-            for (const [id, valid] of Object.entries(checks)) {
-                const elem = document.getElementById(id);
-                elem.className = valid ? 'valid' : 'invalid';
-                elem.textContent = (valid ? '✓' : '✗') + ' ' + elem.textContent.substring(2);
-            }
-        });
-
-        // Registration
-        document.getElementById('registrationForm')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const email = document.getElementById('regEmail').value;
-            const username = document.getElementById('regUsername').value;
-            const password = document.getElementById('regPassword').value;
-
-            try {
-                showLoading();
-                
-                // Call unified registration endpoint in ui-backend
-                const result = await apiCall('uidaaas', '/register', 'POST', {
-                    email: email,
-                    username: username,
-                    password: password
-                });
-
-                currentUser = result.username;
-                hideLoading();
-                showMessage('Account created successfully! Now set up your image pattern.', 'success');
-                
-                // Move to pattern setup
-                setTimeout(() => {
-                    goToStep(2);
-                    initPatternGrid();
-                }, 1500);
-
-            } catch (error) {
-                hideLoading();
-                showMessage('Registration failed: ' + error.message, 'error');
-            }
-        });
-
-        // Initialize pattern grid
-        function initPatternGrid() {
-            const grid = document.getElementById('patternGrid');
-            grid.innerHTML = '';
-            selectedPattern = [];
-
-            for (let row = 0; row < 4; row++) {
-                for (let col = 0; col < 4; col++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'grid-cell';
-                    cell.dataset.row = row;
-                    cell.dataset.col = col;
-                    cell.textContent = (row * 4 + col + 1);
-                    
-                    cell.addEventListener('click', function() {
-                        togglePatternCell(this, row, col);
-                    });
-                    
-                    grid.appendChild(cell);
-                }
-            }
-        }
-
-        // Toggle pattern cell selection
-        function togglePatternCell(cell, row, col) {
-            const position = [row, col];
-            const index = selectedPattern.findIndex(p => p[0] === row && p[1] === col);
-
-            if (index > -1) {
-                selectedPattern.splice(index, 1);
-                cell.classList.remove('selected');
+            if (tab === 'login') {
+                document.querySelector('.tab-btn:first-child').classList.add('active');
+                document.getElementById('loginTab').classList.add('active');
             } else {
-                selectedPattern.push(position);
-                cell.classList.add('selected');
+                document.querySelector('.tab-btn:last-child').classList.add('active');
+                document.getElementById('registerTab').classList.add('active');
             }
-
-            document.getElementById('patternCount').textContent = selectedPattern.length;
-            document.getElementById('savePatternBtn').disabled = selectedPattern.length < 3;
-        }
-
-        // Save pattern
-        async function savePattern() {
-            if (selectedPattern.length < 3) {
-                showMessage('Please select at least 3 cells', 'error');
-                return;
-            }
-
-            try {
-                showLoading();
-
-                await apiCall('dmiuaas', '/pattern/setup', 'POST', {
-                    username: currentUser,
-                    pattern: selectedPattern
-                });
-
-                hideLoading();
-                showMessage('Pattern saved successfully! You can now login.', 'success');
-                
-                setTimeout(() => {
-                    goToStep(3);
-                }, 1500);
-
-            } catch (error) {
-                hideLoading();
-                showMessage('Failed to save pattern: ' + error.message, 'error');
-            }
-        }
-
-        // Login
-        document.getElementById('loginForm')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
             
-            const username = document.getElementById('loginUsername').value;
-            const password = document.getElementById('loginPassword').value;
+            hideAlert();
+        }
+
+        function showAlert(message, type = 'error') {
+            const alertBox = type === 'error' ? document.getElementById('alertBox') : document.getElementById('successBox');
+            const otherBox = type === 'error' ? document.getElementById('successBox') : document.getElementById('alertBox');
+            
+            otherBox.classList.remove('show');
+            alertBox.textContent = message;
+            alertBox.classList.add('show');
+        }
+
+        function hideAlert() {
+            document.getElementById('alertBox').classList.remove('show');
+            document.getElementById('successBox').classList.remove('show');
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').classList.toggle('show', show);
+        }
+
+        async function checkAvailability(field) {
+            const input = document.getElementById(`register${field.charAt(0).toUpperCase() + field.slice(1)}`);
+            const value = input.value.trim();
+            
+            if (!value) return;
 
             try {
-                showLoading();
-
-                // Authenticate with password via ui-backend
-                const loginResult = await apiCall('uidaaas', '/login', 'POST', {
-                    username: username,
-                    password: password
+                const response = await fetch('/api/check-availability', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [field]: value })
                 });
 
-                currentUser = username;
-                const sessionId = loginResult.session_id;
-                hideLoading();
-                showMessage('Password verified! Now verify your pattern.', 'success');
+                const data = await response.json();
+                const errorEl = document.getElementById(`${field}Error`);
+                const successEl = document.getElementById(`${field}Success`);
 
-                // Initialize challenge
-                setTimeout(async () => {
-                    try {
-                        showLoading();
-                        
-                        const challengeResult = await apiCall('dmiuaas', '/pattern/challenge', 'POST', {
-                            username: username,
-                            session_id: sessionId
-                        });
-
-                        currentChallengeToken = challengeResult.challenge_token;
-                        window.sessionId = sessionId; // Store for verification
-                        hideLoading();
-                        
-                        goToStep(4);
-                        initVerificationGrid();
-
-                    } catch (error) {
-                        hideLoading();
-                        showMessage('Failed to initialize challenge: ' + error.message, 'error');
+                if (field === 'email') {
+                    if (!data.email_valid) {
+                        input.classList.add('error');
+                        input.classList.remove('success');
+                        errorEl.textContent = data.email_message;
+                        errorEl.classList.add('show');
+                        successEl.classList.remove('show');
+                    } else if (!data.email_available) {
+                        input.classList.add('error');
+                        input.classList.remove('success');
+                        errorEl.textContent = data.email_message;
+                        errorEl.classList.add('show');
+                        successEl.classList.remove('show');
+                    } else {
+                        input.classList.remove('error');
+                        input.classList.add('success');
+                        errorEl.classList.remove('show');
+                        successEl.textContent = '✓ Email is available';
+                        successEl.classList.add('show');
                     }
-                }, 1500);
-
-            } catch (error) {
-                hideLoading();
-                showMessage('Login failed: ' + error.message, 'error');
-            }
-        });
-
-        // Initialize verification grid
-        function initVerificationGrid() {
-            const grid = document.getElementById('verificationGrid');
-            grid.innerHTML = '';
-            verificationPattern = [];
-
-            for (let row = 0; row < 4; row++) {
-                for (let col = 0; col < 4; col++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'grid-cell';
-                    cell.dataset.row = row;
-                    cell.dataset.col = col;
-                    cell.textContent = (row * 4 + col + 1);
-                    
-                    cell.addEventListener('click', function() {
-                        toggleVerificationCell(this, row, col);
-                    });
-                    
-                    grid.appendChild(cell);
+                } else if (field === 'username') {
+                    if (!data.username_available) {
+                        input.classList.add('error');
+                        input.classList.remove('success');
+                        errorEl.textContent = data.username_message;
+                        errorEl.classList.add('show');
+                        successEl.classList.remove('show');
+                    } else {
+                        input.classList.remove('error');
+                        input.classList.add('success');
+                        errorEl.classList.remove('show');
+                        successEl.textContent = '✓ Username is available';
+                        successEl.classList.add('show');
+                    }
                 }
+            } catch (error) {
+                console.error('Availability check failed:', error);
             }
         }
 
-        // Toggle verification cell selection
-        function toggleVerificationCell(cell, row, col) {
-            const position = [row, col];
-            const index = verificationPattern.findIndex(p => p[0] === row && p[1] === col);
+        async function register() {
+            hideAlert();
+            const email = document.getElementById('registerEmail').value.trim();
+            const username = document.getElementById('registerUsername').value.trim();
+            const password = document.getElementById('registerPassword').value;
 
-            if (index > -1) {
-                verificationPattern.splice(index, 1);
-                cell.classList.remove('selected');
-            } else {
-                verificationPattern.push(position);
-                cell.classList.add('selected');
-            }
-
-            document.getElementById('verifyPatternCount').textContent = verificationPattern.length;
-        }
-
-        // Verify pattern
-        async function verifyPattern() {
-            if (verificationPattern.length < 3) {
-                showMessage('Please select your pattern', 'error');
+            if (!email || !username || !password) {
+                showAlert('Please fill in all fields');
                 return;
             }
 
-            try {
-                showLoading();
+            showLoading(true);
 
-                const verifyResult = await apiCall('dmiuaas', '/pattern/verify', 'POST', {
-                    username: currentUser,
-                    session_id: window.sessionId,
-                    challenge_token: currentChallengeToken,
-                    selected_positions: verificationPattern
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, username, password })
                 });
 
-                if (verifyResult.success) {
-                    hideLoading();
-                    showMessage('Authentication successful!', 'success');
-                    
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentUsername = data.username;
+                    showAlert(data.message, 'success');
                     setTimeout(() => {
-                        goToStep(5);
+                        document.getElementById('authSection').style.display = 'none';
+                        document.getElementById('patternSetupSection').style.display = 'block';
+                        initializeSetupGrid();
                     }, 1500);
                 } else {
-                    hideLoading();
-                    showMessage('Pattern verification failed. Please try again.', 'error');
-                    verificationPattern = [];
-                    initVerificationGrid();
+                    showAlert(data.error || 'Registration failed');
                 }
-
             } catch (error) {
-                hideLoading();
-                showMessage('Verification failed: ' + error.message, 'error');
+                showAlert('Network error. Please try again.');
+            } finally {
+                showLoading(false);
             }
         }
 
-        // Navigation
-        function goToStep(step) {
-            // Update step indicators
-            document.querySelectorAll('.step').forEach((s, i) => {
-                s.classList.remove('active', 'completed');
-                if (i < step - 1) {
-                    s.classList.add('completed');
-                } else if (i === step - 1) {
-                    s.classList.add('active');
+        async function login() {
+            hideAlert();
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!username || !password) {
+                showAlert('Please enter username and password');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentUsername = username;
+                    currentSessionId = data.session_id;
+                    
+                    // Initialize pattern challenge
+                    await initializePatternChallenge();
+                } else {
+                    showAlert(data.error || 'Login failed');
                 }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function initializeSetupGrid() {
+            const grid = document.getElementById('setupGrid');
+            grid.innerHTML = '';
+            selectedPositions = [];
+
+            for (let row = 0; row < 4; row++) {
+                for (let col = 0; col < 4; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-cell';
+                    cell.textContent = '◻️';
+                    cell.onclick = () => toggleCell(cell, row, col, 'setup');
+                    grid.appendChild(cell);
+                }
+            }
+            updateSelectedCount('setup');
+        }
+
+        function toggleCell(cell, row, col, mode) {
+            const posKey = `${row},${col}`;
+            const index = selectedPositions.findIndex(p => p[0] === row && p[1] === col);
+
+            if (index > -1) {
+                selectedPositions.splice(index, 1);
+                cell.classList.remove('selected');
+                cell.textContent = '◻️';
+            } else {
+                selectedPositions.push([row, col]);
+                cell.classList.add('selected');
+                cell.textContent = '✓';
+            }
+
+            updateSelectedCount(mode);
+        }
+
+        function updateSelectedCount(mode) {
+            const countEl = document.getElementById(mode === 'setup' ? 'selectedCount' : 'verifyCount');
+            countEl.textContent = selectedPositions.length;
+
+            if (mode === 'setup') {
+                document.getElementById('savePatternBtn').disabled = selectedPositions.length < 3;
+            }
+        }
+
+        async function savePattern() {
+            if (selectedPositions.length < 3) {
+                showAlert('Please select at least 3 positions');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                const response = await fetch('/api/pattern/setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: currentUsername,
+                        pattern: selectedPositions
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('Pattern saved successfully! You can now login.', 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    showAlert(data.error || 'Failed to save pattern');
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function initializePatternChallenge() {
+            showLoading(true);
+
+            try {
+                const response = await fetch('/api/pattern/challenge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: currentUsername,
+                        session_id: currentSessionId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentChallengeToken = data.challenge_token;
+                    document.getElementById('authSection').style.display = 'none';
+                    document.getElementById('patternVerifySection').style.display = 'block';
+                    renderVerifyGrid(data.grid);
+                } else {
+                    showAlert(data.error || 'Failed to initialize challenge');
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderVerifyGrid(grid) {
+            const gridEl = document.getElementById('verifyGrid');
+            gridEl.innerHTML = '';
+            selectedPositions = [];
+
+            grid.forEach(row => {
+                row.forEach(cell => {
+                    const cellEl = document.createElement('div');
+                    cellEl.className = 'grid-cell';
+                    cellEl.textContent = cell.image;
+                    cellEl.onclick = () => toggleCell(cellEl, cell.position[0], cell.position[1], 'verify');
+                    gridEl.appendChild(cellEl);
+                });
             });
+            updateSelectedCount('verify');
+        }
 
-            // Show correct section
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            
-            const sections = ['', 'registrationSection', 'patternSetupSection', 'loginSection', 'verificationSection', 'successSection'];
-            if (sections[step]) {
-                document.getElementById(sections[step]).classList.add('active');
+        async function verifyPattern() {
+            if (selectedPositions.length === 0) {
+                showAlert('Please select your pattern positions');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                const response = await fetch('/api/pattern/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: currentUsername,
+                        session_id: currentSessionId,
+                        challenge_token: currentChallengeToken,
+                        selected_positions: selectedPositions
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('patternVerifySection').style.display = 'none';
+                    document.getElementById('dashboardSection').classList.add('show');
+                    document.getElementById('dashUsername').textContent = currentUsername;
+                } else {
+                    showAlert(data.message || 'Pattern verification failed');
+                    if (data.attempts_remaining === 0) {
+                        setTimeout(() => location.reload(), 2000);
+                    }
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            } finally {
+                showLoading(false);
             }
         }
 
-        function showRegistration() {
-            goToStep(1);
-        }
-
-        function showLogin() {
-            goToStep(3);
-        }
-
-        function logout() {
-            currentUser = null;
-            currentRequestId = null;
-            currentOtpToken = null;
-            currentChallengeToken = null;
-            selectedPattern = [];
-            verificationPattern = [];
-            
-            document.getElementById('registrationForm').reset();
-            document.getElementById('loginForm').reset();
-            
-            goToStep(1);
-            showMessage('Logged out successfully', 'info');
-        }
-
-        // UI helpers
-        function showMessage(message, type) {
-            const container = document.getElementById('messageContainer');
-            container.innerHTML = `<div class="message ${type}">${message}</div>`;
-            
-            setTimeout(() => {
-                container.innerHTML = '';
-            }, 5000);
-        }
-
-        function showLoading() {
-            const container = document.getElementById('messageContainer');
-            container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-        }
-
-        function hideLoading() {
-            document.getElementById('messageContainer').innerHTML = '';
-        }
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            // Set base URL from current location if deployed
-            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                const baseUrl = `${window.location.protocol}//${window.location.hostname}`;
-                document.getElementById('baseUrl').value = baseUrl;
-                config.baseUrl = baseUrl;
+        async function logout() {
+            if (currentSessionId) {
+                await fetch(`/api/session/${currentSessionId}`, { method: 'DELETE' });
             }
-        });
+            location.reload();
+        }
     </script>
 </body>
 </html>

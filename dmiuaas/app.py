@@ -1,13 +1,13 @@
-# dmiuaas/app.py - DMIUAaaS with grid-based pattern (demo only)
+# dmiuaas/app.py - DMIUAaaS with LACryptaaS Integration
 import os
 import json
 import base64
 import secrets
 import hashlib
+import requests
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, abort
 from flask_sqlalchemy import SQLAlchemy
-from cryptography.fernet import Fernet
 
 app = Flask(__name__)
 BASE_DIR = os.path.dirname(__file__)
@@ -16,26 +16,31 @@ app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
+# Service URLs
+KGAAS_URL = os.environ.get("KG_AAS_URL", "http://localhost:8001")
+KGAAS_API_KEY = os.environ.get("KG_AAS_APIKEY", "demo-secret-token")
+LACRYPTAAS_URL = os.environ.get("LACRYPTAAS_URL", "http://localhost:8002")
+
 # Configuration
 CHALLENGE_TTL_SECONDS = int(os.environ.get("CHALLENGE_TTL_SECONDS", 300))
 MAX_ATTEMPTS = int(os.environ.get("CHALLENGE_MAX_ATTEMPTS", 5))
 GRID_ROWS = int(os.environ.get("GRID_ROWS", 4))
 GRID_COLS = int(os.environ.get("GRID_COLS", 4))
 
-# Generate or load encryption key for storing patterns
-ENCRYPTION_KEY = os.environ.get("PATTERN_ENCRYPTION_KEY")
-if not ENCRYPTION_KEY:
-    ENCRYPTION_KEY = base64.urlsafe_b64encode(os.urandom(32)).decode()
-    print(f"[WARNING] Using ephemeral encryption key. Set PATTERN_ENCRYPTION_KEY env var for production.")
-    print(f"PATTERN_ENCRYPTION_KEY={ENCRYPTION_KEY}")
+# ============================================================================
+# DATABASE MODELS
+# ============================================================================
 
-cipher_suite = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
-
-# Database Models
 class UserImageSecret(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
-    encrypted_pattern = db.Column(db.Text, nullable=False)  # Encrypted grid positions
+    
+    # Encrypted pattern storage using LACryptaaS
+    pattern_ciphertext = db.Column(db.Text, nullable=False)
+    pattern_nonce = db.Column(db.Text, nullable=False)
+    pattern_tag = db.Column(db.Text, nullable=False)
+    pattern_key_id = db.Column(db.String(128), nullable=False)
+    
     pattern_hash = db.Column(db.String(256), nullable=False)  # For verification
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -43,34 +48,96 @@ class UserImageSecret(db.Model):
 class ImageChallenge(db.Model):
     token = db.Column(db.String(128), primary_key=True)
     username = db.Column(db.String(150), nullable=False)
-    grid_layout_json = db.Column(db.Text, nullable=False)  # Grid with image assignments
+    grid_layout_json = db.Column(db.Text, nullable=False)
     correct_positions_hash = db.Column(db.String(256), nullable=False)
     expires_at = db.Column(db.DateTime, nullable=False)
     attempts = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Helper Functions
+# ============================================================================
+# LACRYPTAAS & KGAAS INTEGRATION
+# ============================================================================
+
+def create_encryption_key():
+    """Create a new encryption key via KGaaS"""
+    try:
+        response = requests.post(
+            f"{KGAAS_URL}/v1/keys",
+            headers={"X-Api-Key": KGAAS_API_KEY},
+            json={"allowed_services": ["dmiuaas", "lacryptaas"]},
+            timeout=5
+        )
+        response.raise_for_status()
+        data = response.json()
+        print(f"✓ Created encryption key: {data['key_id']}")
+        return data['key_id']
+    except Exception as e:
+        print(f"✗ Failed to create key in KGaaS: {e}")
+        raise RuntimeError(f"Key creation failed: {e}")
+
+def encrypt_pattern(pattern_string: str, key_id: str = None):
+    """Encrypt pattern using LACryptaaS with GCM mode"""
+    try:
+        payload = {
+            "plaintext": pattern_string,
+            "mode": "gcm"
+        }
+        if key_id:
+            payload["key_id"] = key_id
+        
+        response = requests.post(
+            f"{LACRYPTAAS_URL}/encrypt",
+            json=payload,
+            timeout=5
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        return {
+            "ciphertext": data["ciphertext_b64"],
+            "nonce": data["nonce_b64"],
+            "tag": data["tag_b64"],
+            "key_id": data["key_id"]
+        }
+    except Exception as e:
+        print(f"✗ Pattern encryption failed: {e}")
+        raise RuntimeError(f"Encryption failed: {e}")
+
+def decrypt_pattern(ciphertext: str, nonce: str, tag: str, key_id: str):
+    """Decrypt pattern using LACryptaaS with GCM mode"""
+    try:
+        response = requests.post(
+            f"{LACRYPTAAS_URL}/decrypt",
+            json={
+                "key_id": key_id,
+                "ciphertext_b64": ciphertext,
+                "nonce_b64": nonce,
+                "tag_b64": tag,
+                "mode": "gcm"
+            },
+            timeout=5
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["plaintext"]
+    except Exception as e:
+        print(f"✗ Pattern decryption failed: {e}")
+        raise RuntimeError(f"Decryption failed: {e}")
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
 def hash_pattern(pattern: str) -> str:
     """Create SHA-256 hash of pattern"""
     return hashlib.sha256(pattern.encode("utf-8")).hexdigest()
-
-def encrypt_pattern(pattern: str) -> str:
-    """Encrypt pattern for storage"""
-    return cipher_suite.encrypt(pattern.encode()).decode()
-
-def decrypt_pattern(encrypted: str) -> str:
-    """Decrypt stored pattern"""
-    return cipher_suite.decrypt(encrypted.encode()).decode()
 
 def generate_token() -> str:
     """Generate secure random token"""
     return base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii")
 
 def validate_grid_positions(positions: list) -> bool:
-    """
-    Validate grid positions
-    Format: [(row, col), (row, col), ...]
-    """
+    """Validate grid positions format: [(row, col), ...]"""
     if not positions or not isinstance(positions, list):
         return False
     
@@ -84,36 +151,37 @@ def validate_grid_positions(positions: list) -> bool:
     return True
 
 def positions_to_string(positions: list) -> str:
-    """
-    Convert positions list to string for hashing
-    Format: "0,1;2,3;1,2" (sorted for consistency)
-    """
+    """Convert positions list to string: "0,1;2,3;1,2" (sorted)"""
     sorted_positions = sorted(positions)
     return ";".join(f"{r},{c}" for r, c in sorted_positions)
 
 def string_to_positions(pos_string: str) -> list:
-    """
-    Convert string back to positions list
-    Format: "0,1;2,3;1,2" -> [(0,1), (2,3), (1,2)]
-    """
+    """Convert string back to positions list"""
     if not pos_string:
         return []
     return [tuple(map(int, pos.split(','))) for pos in pos_string.split(';')]
 
 def generate_challenge_grid(username: str):
-    """
-    Generate a challenge grid with images randomly distributed
-    Returns: grid layout and correct positions
-    """
+    """Generate a challenge grid with images randomly distributed"""
     user_secret = UserImageSecret.query.filter_by(username=username).first()
     if not user_secret:
         raise ValueError("User secret not found")
     
-    # Decrypt user's secret pattern (grid positions they selected)
-    decrypted_pattern = decrypt_pattern(user_secret.encrypted_pattern)
-    correct_positions = string_to_positions(decrypted_pattern)
+    # Decrypt user's secret pattern
+    try:
+        decrypted_pattern = decrypt_pattern(
+            user_secret.pattern_ciphertext,
+            user_secret.pattern_nonce,
+            user_secret.pattern_tag,
+            user_secret.pattern_key_id
+        )
+        correct_positions = string_to_positions(decrypted_pattern)
+        print(f"✓ Decrypted pattern for user {username}")
+    except Exception as e:
+        print(f"✗ Failed to decrypt pattern for {username}: {e}")
+        raise
     
-    # Create pool of images (more than grid cells for variety)
+    # Create pool of images
     total_images = 20
     image_pool = [f"img{i:02d}" for i in range(1, total_images + 1)]
     
@@ -134,14 +202,12 @@ def generate_challenge_grid(username: str):
             img_idx += 1
         grid.append(grid_row)
     
-    # Get the images at correct positions for verification
-    correct_images = []
-    for row, col in correct_positions:
-        correct_images.append(grid[row][col]["image"])
-    
-    return grid, correct_positions, correct_images
+    return grid, correct_positions
 
-# API Endpoints
+# ============================================================================
+# API ENDPOINTS
+# ============================================================================
+
 @app.route("/ping", methods=["GET"])
 def ping():
     """Health check"""
@@ -149,25 +215,10 @@ def ping():
 
 @app.route("/register_user_secret", methods=["POST"])
 def register_user_secret():
-    """
-    Register or update user's secret grid pattern
-    
-    Request:
-    {
-        "username": "user123",
-        "pattern": [[0,1], [2,3], [1,2]]  // Grid positions (row, col)
-    }
-    
-    Response:
-    {
-        "message": "Pattern registered",
-        "username": "user123",
-        "pattern_length": 3
-    }
-    """
+    """Register or update user's secret grid pattern"""
     data = request.json or {}
     username = data.get("username")
-    pattern = data.get("pattern")  # List of [row, col] positions
+    pattern = data.get("pattern")
     
     if not username or not pattern:
         return jsonify({"error": "username and pattern required"}), 400
@@ -178,7 +229,7 @@ def register_user_secret():
             "error": f"Invalid pattern. Must be list of [row, col] positions within {GRID_ROWS}x{GRID_COLS} grid"
         }), 400
     
-    # Require at least 3 positions for security
+    # Require at least 3 positions
     if len(pattern) < 3:
         return jsonify({"error": "Pattern must contain at least 3 positions"}), 400
     
@@ -190,23 +241,36 @@ def register_user_secret():
     # Convert to string and hash
     pattern_string = positions_to_string(pattern)
     pattern_hash = hash_pattern(pattern_string)
-    encrypted = encrypt_pattern(pattern_string)
+    
+    # Encrypt pattern using LACryptaaS
+    try:
+        print(f"🔐 Encrypting pattern for user: {username}")
+        encrypted = encrypt_pattern(pattern_string)
+        print(f"✓ Pattern encrypted with key: {encrypted['key_id']}")
+    except Exception as e:
+        return jsonify({"error": f"Failed to encrypt pattern: {str(e)}"}), 500
     
     # Store or update
     user = UserImageSecret.query.filter_by(username=username).first()
     if user:
-        user.encrypted_pattern = encrypted
+        user.pattern_ciphertext = encrypted['ciphertext']
+        user.pattern_nonce = encrypted['nonce']
+        user.pattern_tag = encrypted['tag']
+        user.pattern_key_id = encrypted['key_id']
         user.pattern_hash = pattern_hash
         user.updated_at = datetime.utcnow()
-        message = "Pattern updated"
+        message = "Pattern updated successfully"
     else:
         user = UserImageSecret(
             username=username,
-            encrypted_pattern=encrypted,
+            pattern_ciphertext=encrypted['ciphertext'],
+            pattern_nonce=encrypted['nonce'],
+            pattern_tag=encrypted['tag'],
+            pattern_key_id=encrypted['key_id'],
             pattern_hash=pattern_hash
         )
         db.session.add(user)
-        message = "Pattern registered"
+        message = "Pattern registered successfully"
     
     db.session.commit()
     
@@ -214,28 +278,13 @@ def register_user_secret():
         "message": message,
         "username": username,
         "pattern_length": len(pattern),
-        "grid_size": f"{GRID_ROWS}x{GRID_COLS}"
+        "grid_size": f"{GRID_ROWS}x{GRID_COLS}",
+        "encryption_key_id": encrypted['key_id']
     }), 201
 
 @app.route("/init_image_challenge", methods=["POST"])
 def init_image_challenge():
-    """
-    Initialize an image challenge for a user
-    
-    Request:
-    {
-        "username": "user123"
-    }
-    
-    Response:
-    {
-        "token": "challenge_token",
-        "grid": [[{"position": [0,0], "image": "img01"}, ...], ...],
-        "grid_size": {"rows": 4, "cols": 4},
-        "expires_at": "2024-01-01T12:00:00",
-        "instructions": "Select the grid positions matching your pattern"
-    }
-    """
+    """Initialize an image challenge for a user"""
     data = request.json or {}
     username = data.get("username")
     
@@ -249,9 +298,9 @@ def init_image_challenge():
     
     try:
         # Generate challenge grid
-        grid, correct_positions, correct_images = generate_challenge_grid(username)
+        grid, correct_positions = generate_challenge_grid(username)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Failed to create challenge: {str(e)}"}), 500
     
     # Create challenge token
     token = generate_token()
@@ -285,22 +334,7 @@ def init_image_challenge():
 
 @app.route("/verify_image_challenge", methods=["POST"])
 def verify_image_challenge():
-    """
-    Verify user's response to image challenge
-    
-    Request:
-    {
-        "token": "challenge_token",
-        "selected_positions": [[0,1], [2,3], [1,2]]  // User's selections
-    }
-    
-    Response:
-    {
-        "success": true/false,
-        "message": "Challenge passed" or error details,
-        "attempts_remaining": 4
-    }
-    """
+    """Verify user's response to image challenge"""
     data = request.json or {}
     token = data.get("token")
     selected_positions = data.get("selected_positions")
@@ -359,20 +393,7 @@ def verify_image_challenge():
 
 @app.route("/get_user_pattern_info", methods=["GET"])
 def get_user_pattern_info():
-    """
-    Get information about a user's registered pattern (without revealing the pattern)
-    
-    Query params: username
-    
-    Response:
-    {
-        "username": "user123",
-        "has_pattern": true,
-        "pattern_length": 3,
-        "created_at": "2024-01-01T12:00:00",
-        "updated_at": "2024-01-01T12:00:00"
-    }
-    """
+    """Get information about a user's registered pattern (without revealing it)"""
     username = request.args.get("username")
     if not username:
         return jsonify({"error": "username parameter required"}), 400
@@ -387,7 +408,12 @@ def get_user_pattern_info():
     
     # Decrypt to get length but don't reveal positions
     try:
-        decrypted = decrypt_pattern(user.encrypted_pattern)
+        decrypted = decrypt_pattern(
+            user.pattern_ciphertext,
+            user.pattern_nonce,
+            user.pattern_tag,
+            user.pattern_key_id
+        )
         positions = string_to_positions(decrypted)
         pattern_length = len(positions)
     except:
@@ -399,7 +425,8 @@ def get_user_pattern_info():
         "pattern_length": pattern_length,
         "grid_size": f"{GRID_ROWS}x{GRID_COLS}",
         "created_at": user.created_at.isoformat(),
-        "updated_at": user.updated_at.isoformat()
+        "updated_at": user.updated_at.isoformat(),
+        "encryption_key_id": user.pattern_key_id
     }), 200
 
 @app.route("/list_users", methods=["GET"])
@@ -410,7 +437,12 @@ def list_users():
     result = []
     for u in users:
         try:
-            decrypted = decrypt_pattern(u.encrypted_pattern)
+            decrypted = decrypt_pattern(
+                u.pattern_ciphertext,
+                u.pattern_nonce,
+                u.pattern_tag,
+                u.pattern_key_id
+            )
             positions = string_to_positions(decrypted)
             pattern_length = len(positions)
         except:
@@ -419,21 +451,15 @@ def list_users():
         result.append({
             "username": u.username,
             "pattern_length": pattern_length,
-            "created_at": u.created_at.isoformat()
+            "created_at": u.created_at.isoformat(),
+            "encryption_key_id": u.pattern_key_id
         })
     
     return jsonify(result), 200
 
 @app.route("/delete_user_pattern", methods=["DELETE"])
 def delete_user_pattern():
-    """
-    Delete a user's pattern
-    
-    Request:
-    {
-        "username": "user123"
-    }
-    """
+    """Delete a user's pattern"""
     data = request.json or {}
     username = data.get("username")
     
@@ -475,6 +501,13 @@ def internal_error(e):
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-    print(f"Starting DMIUAaaS on port 6000")
+    print("=" * 60)
+    print("🎨 DMIUAaaS - Image Pattern Authentication Service")
+    print("=" * 60)
+    print(f"Starting on port 6000")
     print(f"Grid size: {GRID_ROWS}x{GRID_COLS}")
+    print(f"KGaaS: {KGAAS_URL}")
+    print(f"LACryptaaS: {LACRYPTAAS_URL}")
+    print("🔒 Pattern encryption: ENABLED via LACryptaaS")
+    print("=" * 60)
     app.run(host='0.0.0.0', port=6000, debug=True)
